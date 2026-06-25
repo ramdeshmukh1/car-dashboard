@@ -1835,7 +1835,7 @@ body.light-mode .nav-info-text {
     // Nav tiles
     document.getElementById('tileYahoo').addEventListener('click', (e) => {
       addRipple(e, e.currentTarget);
-      openApp('yjcarnavi://', 'https://map.yahoo.co.jp/');
+      window.location.href = 'shortcuts://run-shortcut?name=Yahoo';
     });
     document.getElementById('tileCocchi').addEventListener('click', (e) => {
       addRipple(e, e.currentTarget);
