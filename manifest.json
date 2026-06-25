@@ -1,0 +1,19 @@
+{
+  "name": "Serena GT+ Dashboard",
+  "short_name": "Dashboard",
+  "description": "Futuristic car dashboard launcher for iPad",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#0b1120",
+  "theme_color": "#0b1120",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='90' fill='%230b1120'/><circle cx='256' cy='256' r='120' fill='none' stroke='%2300f0ff' stroke-width='8'/><circle cx='256' cy='256' r='8' fill='%2300f0ff'/><text x='256' y='380' text-anchor='middle' font-size='48' fill='%2300f0ff' font-family='system-ui'>GT+</text></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

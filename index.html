@@ -1,0 +1,2077 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Serena GT+">
+<meta name="theme-color" content="#0b1120">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='90' fill='%230b1120'/><circle cx='256' cy='256' r='120' fill='none' stroke='%2300f0ff' stroke-width='8'/><text x='256' y='290' text-anchor='middle' font-size='80' fill='%2300f0ff' font-family='system-ui'>GT+</text></svg>">
+<title>Serena GT+</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<style>
+/* ============================================================
+   CSS CUSTOM PROPERTIES (Theming)
+   ============================================================ */
+:root {
+  --accent: 0, 240, 255;
+  --accent-hex: #00f0ff;
+  --bg: #0b1120;
+  --card-bg: rgba(var(--accent), 0.04);
+  --card-border: rgba(var(--accent), 0.15);
+  --card-glow: rgba(var(--accent), 0.05);
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255,255,255,0.7);
+  --text-muted: rgba(255,255,255,0.4);
+  --font: 'SF Pro Display', -apple-system, 'Helvetica Neue', sans-serif;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+/* ============================================================
+   RESET & iOS TOUCH PREVENTION
+   ============================================================ */
+*, *::before, *::after {
+  margin: 0; padding: 0; box-sizing: border-box;
+}
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  position: fixed; inset: 0;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font);
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+
+/* ============================================================
+   BACKGROUND & STARFIELD
+   ============================================================ */
+.dashboard {
+  position: fixed; inset: 0;
+  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+  overflow: hidden;
+}
+.bg-gradient {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse at 30% 80%, rgba(var(--accent), 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(var(--accent), 0.04) 0%, transparent 40%);
+  pointer-events: none;
+}
+.stars {
+  position: absolute; inset: 0;
+  overflow: hidden; z-index: 0;
+  pointer-events: none;
+}
+.star {
+  position: absolute;
+  width: 2px; height: 2px;
+  background: rgba(255,255,255,0.3);
+  border-radius: 50%;
+  animation: starTwinkle 3s ease-in-out infinite;
+}
+@keyframes starTwinkle {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 0.8; }
+}
+
+/* ============================================================
+   TOP STATUS BAR
+   ============================================================ */
+.status-bar {
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 8%;
+  display: flex; align-items: center;
+  justify-content: space-between;
+  padding: 0 2.5%;
+  z-index: 10;
+}
+.vehicle-info {
+  display: flex; align-items: center; gap: 10px;
+}
+.vehicle-name {
+  font-size: clamp(10px, 1vw, 14px);
+  font-weight: 300; color: rgba(255,255,255,0.8);
+  letter-spacing: 2px; text-transform: uppercase;
+}
+.gps-badge {
+  display: flex; align-items: center; gap: 4px;
+  font-size: clamp(8px, 0.7vw, 10px);
+  color: #00e676;
+  transition: color 0.3s;
+}
+.gps-badge.no-fix {
+  color: #ff5252;
+}
+.gps-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #00e676;
+  box-shadow: 0 0 6px rgba(0,230,118,0.6);
+  animation: gpsPulse 2s ease-in-out infinite;
+  transition: background 0.3s, box-shadow 0.3s;
+}
+.gps-badge.no-fix .gps-dot {
+  background: #ff5252;
+  box-shadow: 0 0 6px rgba(255,82,82,0.6);
+}
+@keyframes gpsPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.3); }
+}
+.signal-bars {
+  display: flex; align-items: flex-end; gap: 2px; height: 12px;
+}
+.signal-bars .bar {
+  width: 3px; border-radius: 1px;
+  background: rgba(var(--accent), 1);
+  transition: opacity 0.3s;
+}
+.signal-bars.offline .bar {
+  opacity: 0.2;
+}
+.clock-center {
+  text-align: center;
+}
+.clock-time {
+  font-size: clamp(22px, 2.8vw, 40px);
+  font-weight: 300;
+  background: linear-gradient(180deg, #ffffff 0%, #b8e6ff 50%, rgba(var(--accent), 1) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: 4px;
+}
+.clock-date {
+  font-size: clamp(8px, 0.7vw, 11px);
+  color: var(--text-muted);
+  letter-spacing: 2px;
+  font-weight: 300;
+}
+.weather-badge {
+  display: flex; align-items: center; gap: 6px;
+  font-size: clamp(12px, 1.2vw, 17px);
+  color: #fff; font-weight: 300;
+}
+.weather-icon {
+  position: relative;
+  width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+}
+.weather-icon .sun {
+  font-size: 18px;
+  animation: sunSpin 10s linear infinite;
+}
+@keyframes sunSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ============================================================
+   LEFT: NAVIGATION MAP
+   ============================================================ */
+.map-area {
+  position: absolute;
+  left: 1.5%; top: 10%;
+  width: 60%; height: 78%;
+  background: var(--card-bg);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  overflow: hidden;
+  z-index: 3;
+  box-shadow:
+    0 0 20px var(--card-glow),
+    inset 0 0 20px rgba(var(--accent), 0.02);
+  animation: cardBreath 4s ease-in-out infinite;
+}
+@keyframes cardBreath {
+  0%, 100% { box-shadow: 0 0 20px var(--card-glow), inset 0 0 20px rgba(var(--accent), 0.02); }
+  50% { box-shadow: 0 0 30px rgba(var(--accent), 0.1), inset 0 0 25px rgba(var(--accent), 0.04); }
+}
+.compass {
+  position: absolute; top: 12px; right: 56px;
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  border: 1px solid rgba(var(--accent), 0.2);
+  background: rgba(0,0,0,0.4);
+  display: flex; align-items: center;
+  justify-content: center;
+  z-index: 5;
+  transition: transform 0.3s;
+}
+.compass-needle {
+  font-size: 10px; font-weight: 700;
+  color: #ff4444;
+}
+.map-canvas {
+  width: 100%; height: calc(100% - 80px);
+  position: relative;
+  cursor: pointer;
+}
+#leafletMap {
+  width: 100%; height: 100%;
+  border-radius: 14px 14px 0 0;
+  z-index: 1;
+}
+/* Dark map tiles filter */
+.dark-tiles {
+  filter: invert(1) hue-rotate(200deg) brightness(0.8) contrast(1.1) saturate(0.4);
+}
+.leaflet-control-attribution {
+  display: none !important;
+}
+.leaflet-control-zoom {
+  display: none !important;
+}
+/* Custom car marker */
+.car-marker {
+  font-size: 28px;
+  filter: drop-shadow(0 0 8px rgba(var(--accent), 0.7));
+  transition: transform 0.3s;
+}
+
+/* Map overlay controls */
+.map-overlay-top {
+  position: absolute; top: 8px; left: 8px; right: 8px;
+  z-index: 500; display: flex; gap: 6px;
+  pointer-events: auto;
+}
+.map-search-btn {
+  flex: 1; padding: 10px 14px; border-radius: 10px;
+  background: rgba(11,17,32,0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(var(--accent), 0.15);
+  color: var(--text-muted);
+  font-size: clamp(10px, 1vw, 13px);
+  cursor: pointer;
+  display: flex; align-items: center; gap: 8px;
+  transition: all 0.2s;
+  font-family: var(--font);
+  font-weight: 300; letter-spacing: 1px;
+}
+.map-search-btn:active {
+  background: rgba(var(--accent), 0.1);
+  transform: scale(0.97);
+}
+.map-locate-btn {
+  width: 40px; height: 40px; border-radius: 10px;
+  background: rgba(11,17,32,0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(var(--accent), 0.15);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; cursor: pointer;
+  transition: all 0.2s;
+}
+.map-locate-btn:active {
+  background: rgba(var(--accent), 0.2);
+  transform: scale(0.9);
+}
+
+/* ============================================================
+   FULLSCREEN NAVIGATION SCREEN
+   ============================================================ */
+.nav-screen {
+  position: fixed; inset: 0;
+  z-index: 200;
+  background: var(--bg);
+  display: flex; flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.nav-screen.open {
+  transform: translateX(0);
+}
+.nav-header {
+  display: flex; align-items: center;
+  padding: 10px 12px; gap: 8px;
+  background: rgba(11,17,32,0.95);
+  backdrop-filter: blur(12px);
+  z-index: 210;
+  border-bottom: 1px solid rgba(var(--accent), 0.1);
+}
+.nav-back {
+  width: 40px; height: 40px; border-radius: 10px;
+  background: rgba(var(--accent), 0.06);
+  border: 1px solid rgba(var(--accent), 0.15);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; cursor: pointer; color: var(--accent-hex);
+  flex-shrink: 0; transition: all 0.2s;
+}
+.nav-back:active { transform: scale(0.9); }
+.nav-search-input {
+  flex: 1; padding: 10px 14px; border-radius: 10px;
+  background: rgba(var(--accent), 0.04);
+  border: 1px solid rgba(var(--accent), 0.15);
+  color: #fff; font-size: 14px;
+  font-family: var(--font); font-weight: 300;
+  letter-spacing: 1px; outline: none;
+  -webkit-appearance: none;
+  transition: border-color 0.2s;
+}
+.nav-search-input:focus {
+  border-color: rgba(var(--accent), 0.5);
+  box-shadow: 0 0 12px rgba(var(--accent), 0.15);
+}
+.nav-search-input::placeholder {
+  color: rgba(255,255,255,0.25);
+}
+.nav-app-btns {
+  display: flex; gap: 5px; flex-shrink: 0;
+}
+.nav-app-btn {
+  padding: 9px 12px; border-radius: 10px;
+  background: rgba(var(--accent), 0.06);
+  border: 1px solid rgba(var(--accent), 0.15);
+  font-size: 12px; font-weight: 300;
+  cursor: pointer; color: var(--text-secondary);
+  display: flex; align-items: center; gap: 4px;
+  transition: all 0.2s; letter-spacing: 0.5px;
+  font-family: var(--font);
+}
+.nav-app-btn:active {
+  transform: scale(0.92);
+  border-color: var(--accent-hex);
+  color: var(--accent-hex);
+}
+.nav-map-wrap {
+  flex: 1; position: relative;
+}
+#navMap {
+  width: 100%; height: 100%;
+}
+.nav-bottom-panel {
+  position: absolute; bottom: 12px; left: 12px; right: 12px;
+  z-index: 210;
+}
+.nav-info-card {
+  padding: 14px 18px;
+  background: rgba(11,17,32,0.9);
+  backdrop-filter: blur(12px);
+  border-radius: 14px;
+  border: 1px solid rgba(var(--accent), 0.15);
+  display: flex; align-items: center;
+  justify-content: space-between;
+}
+.nav-info-text {
+  font-size: 13px; color: var(--text-muted);
+  font-weight: 300; letter-spacing: 1px;
+}
+.nav-info-card .nav-close-btn {
+  padding: 8px 18px; border-radius: 10px;
+  background: rgba(var(--accent), 0.1);
+  border: 1px solid rgba(var(--accent), 0.3);
+  color: var(--accent-hex); font-weight: 300;
+  font-size: 12px; cursor: pointer;
+  letter-spacing: 1px; transition: all 0.2s;
+}
+.nav-info-card .nav-close-btn:active {
+  transform: scale(0.92);
+}
+.map-bottom {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  height: 80px;
+  display: flex; align-items: center;
+  gap: 8px; padding: 0 10px;
+  border-top: 1px solid rgba(var(--accent), 0.08);
+  background: rgba(8,18,36,0.8);
+  backdrop-filter: blur(8px);
+  z-index: 5;
+}
+.speed-circle {
+  width: 80px; height: 80px;
+  border-radius: 50%;
+  border: 2.5px solid rgba(var(--accent), 0.4);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 0 12px rgba(var(--accent), 0.15);
+  background: radial-gradient(circle, rgba(var(--accent), 0.03) 0%, transparent 70%);
+  transition: box-shadow 0.5s, border-color 0.5s;
+}
+.speed-circle.moving {
+  border-color: rgba(var(--accent), 0.7);
+  box-shadow: 0 0 24px rgba(var(--accent), 0.3);
+}
+.speed-val {
+  font-size: 32px; font-weight: 300;
+  color: #fff; line-height: 1;
+  letter-spacing: 1px;
+}
+.speed-unit {
+  font-size: 9px; color: rgba(255,255,255,0.5);
+  text-transform: uppercase;
+}
+.map-quick-btn {
+  flex: 1; height: 36px;
+  background: rgba(var(--accent), 0.06);
+  border: 1px solid rgba(var(--accent), 0.15);
+  border-radius: 8px;
+  display: flex; align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: clamp(11px, 1vw, 14px);
+  color: rgba(255,255,255,0.6);
+  cursor: pointer; transition: all 0.2s;
+  font-weight: 400;
+  letter-spacing: 0.5px;
+}
+.map-quick-btn:hover {
+  background: rgba(var(--accent), 0.12);
+  border-color: rgba(var(--accent), 0.3);
+  color: #fff;
+  transform: scale(1.03);
+}
+.map-quick-btn:active {
+  transform: scale(0.96);
+}
+
+/* ============================================================
+   RIGHT TOP: APP TILES (2x2)
+   ============================================================ */
+.app-tiles {
+  position: absolute;
+  right: 1.5%; top: 10%;
+  width: 35.5%;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: clamp(6px, 0.7vw, 10px);
+  z-index: 3;
+  height: 38%;
+}
+.tile {
+  background: var(--card-bg);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 8px; cursor: pointer;
+  transition: all 0.25s;
+  position: relative;
+  overflow: hidden;
+  box-shadow:
+    0 0 20px var(--card-glow),
+    inset 0 0 20px rgba(var(--accent), 0.02);
+}
+.tile::before {
+  content: '';
+  position: absolute; inset: -1px;
+  border-radius: 14px;
+  background: linear-gradient(135deg,
+    rgba(var(--accent), 0.2) 0%,
+    transparent 40%,
+    transparent 60%,
+    rgba(var(--accent), 0.1) 100%);
+  opacity: 0;
+  transition: opacity 0.3s;
+  z-index: -1;
+}
+.tile:hover::before { opacity: 1; }
+.tile:hover {
+  background: rgba(var(--accent), 0.08);
+  border-color: rgba(var(--accent), 0.35);
+  transform: scale(1.04);
+  box-shadow:
+    0 0 30px rgba(var(--accent), 0.12),
+    inset 0 0 30px rgba(var(--accent), 0.04);
+}
+.tile:active {
+  transform: scale(0.95);
+  transition: transform 0.1s;
+}
+.tile svg, .tile-icon {
+  width: clamp(44px, 5vw, 60px);
+  height: clamp(44px, 5vw, 60px);
+  z-index: 1;
+  border-radius: 14px;
+  object-fit: contain;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+.tile .tile-label {
+  font-size: clamp(9px, 0.9vw, 13px);
+  color: var(--text-secondary);
+  font-weight: 300; text-transform: uppercase;
+  letter-spacing: 2px; z-index: 1;
+}
+
+/* ============================================================
+   RIGHT BOTTOM: MUSIC WIDGET
+   ============================================================ */
+.music-widget {
+  position: absolute;
+  right: 1.5%; top: 50%;
+  width: 35.5%; height: 38%;
+  background: var(--card-bg);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  padding: 12px 14px;
+  z-index: 3;
+  display: flex; flex-direction: column;
+  box-shadow:
+    0 0 20px var(--card-glow),
+    inset 0 0 20px rgba(var(--accent), 0.02);
+}
+.mw-header {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.mw-header-left {
+  display: flex; align-items: center; gap: 6px;
+}
+.mw-header .mw-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent-hex);
+  box-shadow: 0 0 6px rgba(var(--accent), 0.5);
+}
+.mw-header span {
+  font-size: clamp(8px, 0.75vw, 10px);
+  color: var(--accent-hex);
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  font-weight: 300;
+}
+.mw-spotify-btn {
+  font-size: clamp(7px, 0.65vw, 9px);
+  color: #1db954;
+  border: 1px solid rgba(29,185,84,0.3);
+  border-radius: 10px;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.mw-spotify-btn:hover {
+  background: rgba(29,185,84,0.1);
+  border-color: #1db954;
+}
+.mw-spotify-btn:active {
+  transform: scale(0.95);
+}
+.mw-body {
+  flex: 1; display: flex;
+  align-items: center; gap: 12px;
+}
+.mw-album {
+  width: clamp(55px, 6.5vw, 85px);
+  height: clamp(55px, 6.5vw, 85px);
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0a1628 0%, #1a2a4a 100%);
+  border: 2px solid rgba(var(--accent), 0.2);
+  display: flex; align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  position: relative;
+  animation: vinylSpin 8s linear infinite;
+}
+.mw-album.paused {
+  animation-play-state: paused;
+}
+@keyframes vinylSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.mw-album::before {
+  content: '';
+  position: absolute;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 2px solid rgba(var(--accent), 0.15);
+}
+.mw-album::after {
+  content: '';
+  position: absolute; inset: 4px;
+  border-radius: 50%;
+  border: 1px solid rgba(var(--accent), 0.06);
+}
+.mw-album span {
+  font-size: 22px; z-index: 1;
+  animation: vinylSpin 8s linear infinite reverse;
+}
+.mw-album.paused span {
+  animation-play-state: paused;
+}
+.mw-info { flex: 1; min-width: 0; }
+.mw-song {
+  font-size: clamp(11px, 1.1vw, 15px);
+  color: #fff; font-weight: 400;
+  margin-bottom: 2px;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mw-artist {
+  font-size: clamp(9px, 0.85vw, 12px);
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mw-progress {
+  width: 100%; height: 4px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  margin-bottom: 4px;
+  overflow: hidden;
+  position: relative;
+}
+.mw-progress-fill {
+  width: 0%; height: 100%;
+  background: linear-gradient(90deg, var(--accent-hex), #7b2ff7);
+  border-radius: 2px;
+  position: relative;
+  transition: width 1s linear;
+}
+.mw-progress-fill::after {
+  content: '';
+  position: absolute; right: 0; top: -2px;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 6px rgba(var(--accent), 0.6);
+}
+.mw-time-row {
+  display: flex; justify-content: space-between;
+  font-size: clamp(7px, 0.6vw, 9px);
+  color: rgba(255,255,255,0.3);
+  margin-bottom: 8px;
+}
+.mw-controls {
+  display: flex; gap: 10px; align-items: center;
+}
+.mw-btn {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  border: 1px solid rgba(var(--accent), 0.15);
+  background: rgba(var(--accent), 0.04);
+  display: flex; align-items: center;
+  justify-content: center;
+  cursor: pointer; transition: all 0.2s;
+}
+.mw-btn:hover {
+  border-color: rgba(var(--accent), 0.4);
+  background: rgba(var(--accent), 0.1);
+  transform: scale(1.1);
+}
+.mw-btn:active {
+  transform: scale(0.9);
+}
+.mw-btn svg {
+  width: 12px; height: 12px;
+  stroke: var(--accent-hex); fill: none; stroke-width: 2;
+}
+.mw-btn.mw-play {
+  width: 38px; height: 38px;
+  border-color: rgba(var(--accent), 0.3);
+  background: rgba(var(--accent), 0.1);
+  box-shadow: 0 0 16px rgba(var(--accent), 0.15);
+}
+.mw-btn.mw-play svg {
+  width: 16px; height: 16px;
+}
+
+/* ============================================================
+   BOTTOM DOCK
+   ============================================================ */
+.dock {
+  position: absolute;
+  bottom: 1.5%; left: 50%;
+  transform: translateX(-50%);
+  display: flex; gap: 4px;
+  z-index: 10;
+  background: var(--card-bg);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(var(--accent), 0.12);
+  border-radius: 18px;
+  padding: 5px 8px;
+}
+.dock-btn {
+  display: flex; align-items: center;
+  gap: 5px;
+  padding: 7px 16px;
+  border-radius: 14px;
+  font-size: clamp(9px, 0.85vw, 12px);
+  color: rgba(255,255,255,0.5);
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+  position: relative;
+  font-weight: 300;
+  letter-spacing: 1px;
+}
+.dock-btn:hover {
+  color: #fff;
+  background: rgba(var(--accent), 0.08);
+}
+.dock-btn:active {
+  transform: scale(0.95);
+}
+.dock-btn.active-dock {
+  background: rgba(var(--accent), 0.12);
+  border-color: rgba(var(--accent), 0.3);
+  color: var(--accent-hex);
+}
+.dock-btn.active-dock::after {
+  content: '';
+  position: absolute;
+  bottom: -2px; left: 50%;
+  transform: translateX(-50%);
+  width: 16px; height: 3px;
+  background: var(--accent-hex);
+  border-radius: 2px;
+  box-shadow: 0 0 8px rgba(var(--accent), 0.5);
+}
+.dock-btn svg {
+  width: 16px; height: 16px;
+  stroke: currentColor; fill: none;
+  stroke-width: 1.5;
+}
+.dock-btn .dock-icon {
+  font-size: 14px;
+}
+
+/* ============================================================
+   TAP RIPPLE EFFECT
+   ============================================================ */
+.ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(var(--accent), 0.3);
+  transform: scale(0);
+  animation: rippleAnim 0.6s ease-out;
+  pointer-events: none;
+}
+@keyframes rippleAnim {
+  to { transform: scale(4); opacity: 0; }
+}
+
+/* ============================================================
+   SETTINGS PANEL
+   ============================================================ */
+.settings-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+  z-index: 100;
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.settings-overlay.open {
+  display: flex;
+  opacity: 1;
+}
+.settings-panel {
+  width: 90%;
+  max-width: 700px;
+  max-height: 80vh;
+  background: rgba(11,17,32,0.97);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(var(--accent), 0.2);
+  border-radius: 20px 20px 0 0;
+  padding: 24px 32px;
+  overflow-y: auto;
+  transform: translateY(100%);
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.settings-overlay.open .settings-panel {
+  transform: translateY(0);
+}
+.settings-header {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+.settings-header h2 {
+  font-size: 18px; font-weight: 300;
+  letter-spacing: 3px; text-transform: uppercase;
+  color: var(--accent-hex);
+}
+.settings-close {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: 1px solid rgba(var(--accent), 0.2);
+  background: rgba(var(--accent), 0.05);
+  display: flex; align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 16px;
+  transition: all 0.2s;
+}
+.settings-close:hover {
+  background: rgba(var(--accent), 0.15);
+  color: #fff;
+}
+.settings-group {
+  margin-bottom: 20px;
+}
+.settings-group label {
+  display: block;
+  font-size: 11px; font-weight: 300;
+  color: var(--text-muted);
+  letter-spacing: 2px; text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.settings-group input[type="text"] {
+  width: 100%;
+  background: rgba(var(--accent), 0.04);
+  border: 1px solid rgba(var(--accent), 0.15);
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: #fff;
+  font-size: 14px;
+  font-family: var(--font);
+  font-weight: 300;
+  letter-spacing: 1px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.settings-group input[type="text"]:focus {
+  border-color: rgba(var(--accent), 0.5);
+}
+.settings-group input[type="text"]::placeholder {
+  color: rgba(255,255,255,0.2);
+}
+.color-swatches {
+  display: flex; gap: 12px;
+}
+.color-swatch {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all 0.2s;
+  position: relative;
+}
+.color-swatch:hover {
+  transform: scale(1.15);
+}
+.color-swatch.active {
+  border-color: #fff;
+  box-shadow: 0 0 12px currentColor;
+}
+.color-swatch::after {
+  content: '✓';
+  position: absolute; inset: 0;
+  display: flex; align-items: center;
+  justify-content: center;
+  font-size: 14px; color: #fff;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.color-swatch.active::after {
+  opacity: 1;
+}
+.toggle-row {
+  display: flex; gap: 16px; flex-wrap: wrap;
+}
+.toggle-option {
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(var(--accent), 0.15);
+  background: rgba(var(--accent), 0.04);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 300;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.toggle-option:hover {
+  background: rgba(var(--accent), 0.1);
+}
+.toggle-option.active {
+  background: rgba(var(--accent), 0.15);
+  border-color: rgba(var(--accent), 0.4);
+  color: var(--accent-hex);
+}
+
+/* ============================================================
+   DARK/LIGHT MODE TOGGLE (in dock)
+   ============================================================ */
+#dockModeToggle {
+  font-size: 16px;
+  min-width: unset;
+  padding: 8px 12px;
+}
+#dockModeToggle:active {
+  transform: scale(0.9);
+}
+
+/* ============================================================
+   LIGHT MODE OVERRIDES
+   ============================================================ */
+body.light-mode {
+  --bg: #f0f2f5;
+  --card-bg: rgba(255,255,255,0.85);
+  --card-border: rgba(0,0,0,0.08);
+  --card-glow: rgba(0,0,0,0.03);
+  --text-primary: #1a1a2e;
+  --text-secondary: rgba(26,26,46,0.7);
+  --text-muted: rgba(26,26,46,0.4);
+}
+body.light-mode .dashboard {
+  background: var(--bg);
+}
+body.light-mode .bg-gradient {
+  background:
+    radial-gradient(ellipse at 30% 80%, rgba(var(--accent), 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(var(--accent), 0.06) 0%, transparent 40%);
+}
+body.light-mode .star {
+  display: none;
+}
+body.light-mode .clock-time {
+  background: linear-gradient(180deg, #0a1a2a 0%, #1a3050 50%, #006677 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+body.light-mode .vehicle-name {
+  color: #0a1a2a;
+}
+body.light-mode .clock-date {
+  color: #1a3050;
+}
+body.light-mode .weather-badge {
+  color: #0a1a2a;
+}
+body.light-mode .gps-badge {
+  color: #0a1a2a;
+}
+body.light-mode .signal-bars .bar {
+  background: #006677;
+}
+body.light-mode .map-bottom {
+  background: rgba(255,255,255,0.95);
+  backdrop-filter: blur(8px);
+  border-top-color: rgba(0,100,120,0.12);
+}
+body.light-mode .map-quick-btn {
+  background: rgba(255,255,255,0.95);
+  border-color: rgba(10,26,42,0.15);
+  color: #0a1a2a;
+}
+body.light-mode .speed-val {
+  color: #0a1a2a;
+}
+body.light-mode .speed-circle {
+  border-color: #94a3b8;
+  box-shadow: none;
+}
+body.light-mode .speed-unit {
+  color: #1a3050;
+}
+body.light-mode .map-area {
+  background: rgba(255,255,255,0.7);
+  border-color: rgba(0,100,120,0.12);
+  box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+}
+body.light-mode .map-search-btn {
+  background: rgba(255,255,255,0.95);
+  border-color: rgba(10,26,42,0.15);
+  color: #0a1a2a;
+}
+body.light-mode .map-locate-btn {
+  background: rgba(255,255,255,0.95);
+  border-color: rgba(0,100,120,0.2);
+}
+body.light-mode .dock {
+  background: rgba(255,255,255,0.95);
+  border-color: rgba(0,100,120,0.15);
+  box-shadow: 0 -2px 12px rgba(0,0,0,0.06);
+}
+body.light-mode .dock-btn {
+  color: #2a3a4a;
+  font-weight: 500;
+}
+body.light-mode .dock-btn svg {
+  stroke: #2a3a4a;
+  stroke-width: 2.2;
+}
+body.light-mode .dock-btn.active-dock {
+  background: rgba(0,100,120,0.12);
+  color: #006677;
+}
+body.light-mode .dock-btn.active-dock svg {
+  stroke: #006677;
+}
+body.light-mode .tile {
+  background: rgba(255,255,255,0.95);
+  border-color: rgba(0,100,120,0.2);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+}
+body.light-mode .tile .tile-label {
+  color: #0a1a2a;
+}
+body.light-mode .music-widget {
+  background: rgba(255,255,255,0.95);
+  border-color: rgba(0,100,120,0.15);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+}
+body.light-mode .mw-header span {
+  color: #0a1a2a;
+}
+body.light-mode .mw-header .mw-dot {
+  background: #006677;
+}
+body.light-mode .mw-song {
+  color: #0a1a2a;
+}
+body.light-mode .mw-artist {
+  color: #1a3050;
+}
+body.light-mode .mw-btn {
+  border-color: rgba(0,100,120,0.25);
+  background: rgba(0,100,120,0.06);
+}
+body.light-mode .mw-btn svg {
+  stroke: #009aaa;
+  stroke-width: 2;
+}
+body.light-mode .mw-btn.mw-play {
+  border-color: rgba(0,100,120,0.4);
+  background: rgba(0,100,120,0.12);
+  box-shadow: 0 0 12px rgba(0,100,120,0.15);
+}
+body.light-mode .mw-spotify-btn {
+  color: #22885a;
+  border-color: rgba(34,136,90,0.3);
+}
+body.light-mode .mw-album {
+  background: linear-gradient(135deg, #d8eef4 0%, #b8dce8 100%);
+  border-color: rgba(0,100,120,0.3);
+}
+body.light-mode .dark-tiles {
+  filter: none;
+}
+body.light-mode .settings-panel {
+  background: rgba(255,255,255,0.97);
+  border-color: rgba(0,0,0,0.1);
+}
+body.light-mode .settings-header h2 {
+  color: var(--accent-hex);
+}
+body.light-mode .settings-group label {
+  color: rgba(26,26,46,0.5);
+}
+body.light-mode .settings-group input[type="text"] {
+  background: rgba(0,0,0,0.03);
+  border-color: rgba(0,0,0,0.1);
+  color: #1a1a2e;
+}
+body.light-mode .nav-screen {
+  background: var(--bg);
+}
+body.light-mode .nav-header {
+  background: rgba(255,255,255,0.95);
+  border-bottom-color: rgba(0,0,0,0.08);
+}
+body.light-mode .nav-search-input {
+  background: rgba(0,0,0,0.03);
+  border-color: rgba(0,0,0,0.1);
+  color: #1a1a2e;
+}
+body.light-mode .nav-app-btn {
+  background: rgba(0,0,0,0.03);
+  border-color: rgba(0,0,0,0.1);
+  color: rgba(26,26,46,0.7);
+}
+body.light-mode .nav-info-card {
+  background: rgba(255,255,255,0.9);
+  border-color: rgba(0,0,0,0.08);
+}
+body.light-mode .nav-info-text {
+  color: rgba(26,26,46,0.5);
+}
+
+/* ============================================================
+   REDUCED MOTION
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ============================================================
+   RESPONSIVE TWEAKS
+   ============================================================ */
+@media (max-width: 1024px) {
+  .map-area { width: 58%; }
+  .app-tiles, .music-widget { width: 37%; }
+}
+@media (max-width: 768px) {
+  .map-area { width: 55%; height: 72%; }
+  .app-tiles { width: 40%; height: 34%; }
+  .music-widget { width: 40%; height: 34%; top: 46%; }
+  .dock-btn { padding: 6px 10px; font-size: 10px; }
+}
+@media (max-height: 600px) {
+  .status-bar { height: 6%; }
+  .map-area { top: 8%; height: 80%; }
+  .app-tiles { top: 8%; }
+  .music-widget { top: 48%; }
+}
+</style>
+</head>
+<body>
+
+<div class="dashboard">
+  <div class="bg-gradient"></div>
+  <div class="stars" id="stars"></div>
+
+  <!-- ===== TOP STATUS BAR ===== -->
+  <div class="status-bar">
+    <div class="vehicle-info">
+      <span class="vehicle-name" id="vehicleName">Nissan Serena</span>
+      <div class="gps-badge" id="gpsBadge"><span class="gps-dot"></span><span id="gpsLabel">Garmin GLO 2</span></div>
+      <div class="signal-bars" id="signalBars">
+        <div class="bar" style="height:3px"></div>
+        <div class="bar" style="height:5px"></div>
+        <div class="bar" style="height:8px"></div>
+        <div class="bar" style="height:11px"></div>
+      </div>
+    </div>
+    <div class="clock-center">
+      <div class="clock-time" id="clockTime">--:--</div>
+      <div class="clock-date" id="clockDate">---</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="weather-badge" id="weatherBadge">
+        <div class="weather-icon"><span class="sun" id="weatherIcon">☀</span></div>
+        <span id="weatherTemp">--°C</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== LEFT: NAVIGATION MAP ===== -->
+  <div class="map-area" id="mapArea">
+    <div class="map-canvas" id="mapCanvas">
+      <div id="leafletMap"></div>
+      <div class="map-overlay-top">
+        <div class="map-search-btn" id="mapSearchBtn">🔍 Search destination...</div>
+        <div class="map-locate-btn" id="mapLocateBtn">📍</div>
+      </div>
+    </div>
+    <div class="compass" id="compass"><span class="compass-needle">N</span></div>
+    <div class="map-bottom">
+      <div class="speed-circle" id="speedCircle">
+        <span class="speed-val" id="speedVal">0</span>
+        <span class="speed-unit" id="speedUnit">km/h</span>
+      </div>
+      <div class="map-quick-btn" id="btnHome">🏠 Home</div>
+      <div class="map-quick-btn" id="btnWork">🏢 Work</div>
+      <div class="map-quick-btn" id="btnSearch">🔍 Search</div>
+    </div>
+  </div>
+
+  <!-- ===== RIGHT TOP: NAV APP TILES ===== -->
+  <div class="app-tiles">
+    <div class="tile" id="tileYahoo">
+      <div class="tile-icon" style="background: linear-gradient(135deg, #ff0033 0%, #cc0029 100%); display:flex; align-items:center; justify-content:center; border-radius:12px;">
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="white"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
+      </div>
+      <span class="tile-label">Yahoo Map</span>
+    </div>
+    <div class="tile" id="tileCocchi">
+      <div class="tile-icon" style="background: linear-gradient(135deg, #00b4d8 0%, #0077b6 100%); display:flex; align-items:center; justify-content:center; border-radius:12px;">
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="white"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
+      </div>
+      <span class="tile-label">Cocchi Map</span>
+    </div>
+    <div class="tile" id="tileGoogle">
+      <div class="tile-icon" style="background: linear-gradient(135deg, #4285f4 0%, #34a853 50%, #fbbc05 75%, #ea4335 100%); display:flex; align-items:center; justify-content:center; border-radius:12px;">
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="white"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
+      </div>
+      <span class="tile-label">Google Map</span>
+    </div>
+    <div class="tile" id="tileNavitime">
+      <div class="tile-icon" style="background: linear-gradient(135deg, #0066cc 0%, #004499 100%); display:flex; align-items:center; justify-content:center; border-radius:12px;">
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="white" stroke-width="2"><polygon points="3,11 22,2 13,21 11,13"/></svg>
+      </div>
+      <span class="tile-label">Navitime</span>
+    </div>
+  </div>
+
+  <!-- ===== RIGHT BOTTOM: MUSIC WIDGET ===== -->
+  <div class="music-widget">
+    <div class="mw-header">
+      <div class="mw-header-left"><span class="mw-dot"></span><span>Now Playing</span></div>
+      <div class="mw-spotify-btn" id="btnSpotify">Open Spotify</div>
+    </div>
+    <div class="mw-body">
+      <div class="mw-album" id="mwAlbum"><span>🎵</span></div>
+      <div class="mw-info">
+        <div class="mw-song" id="mwSong">Tap Open Spotify</div>
+        <div class="mw-artist" id="mwArtist">to start listening</div>
+        <div class="mw-progress"><div class="mw-progress-fill" id="mwProgress"></div></div>
+        <div class="mw-time-row"><span id="mwTimeNow">0:00</span><span id="mwTimeTotal">0:00</span></div>
+        <div class="mw-controls">
+          <div class="mw-btn" id="btnPrev"><svg viewBox="0 0 24 24"><polygon points="19,20 9,12 19,4"/><line x1="5" y1="4" x2="5" y2="20"/></svg></div>
+          <div class="mw-btn mw-play" id="btnPlayPause"><svg viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg></div>
+          <div class="mw-btn" id="btnNext"><svg viewBox="0 0 24 24"><polygon points="5,4 15,12 5,20"/><line x1="19" y1="4" x2="19" y2="20"/></svg></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== BOTTOM DOCK ===== -->
+  <div class="dock">
+    <div class="dock-btn active-dock" id="dockHome"><span class="dock-icon">🏠</span> Home</div>
+    <div class="dock-btn" id="dockNavigate"><svg viewBox="0 0 24 24"><polygon points="3,11 22,2 13,21 11,13"/></svg> Navigate</div>
+    <div class="dock-btn" id="dockMedia"><svg viewBox="0 0 24 24"><circle cx="5.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="15.5" r="2.5"/><path d="M8 17V5l12-2v12"/></svg> Media</div>
+    <div class="dock-btn" id="dockPhone"><svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3"/></svg> Phone</div>
+    <div class="dock-btn" id="dockMode"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68 1.65 1.65 0 0010 3.17V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Settings</div>
+    <div class="dock-btn" id="dockModeToggle"><span class="dock-icon" id="modeToggle">🌙</span></div>
+  </div>
+</div>
+
+<!-- ===== FULLSCREEN NAVIGATION SCREEN ===== -->
+<div class="nav-screen" id="navScreen">
+  <div class="nav-header">
+    <div class="nav-back" id="navBack">←</div>
+    <input type="text" class="nav-search-input" id="navInput" placeholder="Type destination, then tap a nav app →" enterkeyhint="search">
+    <div class="nav-app-btns">
+      <div class="nav-app-btn" data-app="apple">🍎 Maps</div>
+      <div class="nav-app-btn" data-app="google">🗺 Google</div>
+      <div class="nav-app-btn" data-app="yahoo">📍 Yahoo</div>
+      <div class="nav-app-btn" data-app="navitime">🧭 Navitime</div>
+    </div>
+  </div>
+  <div class="nav-map-wrap">
+    <div id="navMap"></div>
+    <div class="nav-bottom-panel">
+      <div class="nav-info-card">
+        <span class="nav-info-text">Type a destination above, then tap a nav app to start turn-by-turn navigation</span>
+        <div class="nav-close-btn" id="navCloseBtn">Back</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SETTINGS PANEL ===== -->
+<div class="settings-overlay" id="settingsOverlay">
+  <div class="settings-panel" id="settingsPanel">
+    <div class="settings-header">
+      <h2>Settings</h2>
+      <div class="settings-close" id="settingsClose">✕</div>
+    </div>
+
+    <div class="settings-group">
+      <label>Vehicle Name</label>
+      <input type="text" id="setVehicleName" placeholder="Nissan Serena">
+    </div>
+
+    <div class="settings-group">
+      <label>Home Address</label>
+      <input type="text" id="setHomeAddr" placeholder="Enter home address for quick navigation">
+    </div>
+
+    <div class="settings-group">
+      <label>Work Address</label>
+      <input type="text" id="setWorkAddr" placeholder="Enter work address for quick navigation">
+    </div>
+
+    <div class="settings-group">
+      <label>Theme Color</label>
+      <div class="color-swatches" id="colorSwatches">
+        <div class="color-swatch active" data-color="0,240,255" style="background:#00f0ff" title="Cyan"></div>
+        <div class="color-swatch" data-color="168,85,247" style="background:#a855f7" title="Purple"></div>
+        <div class="color-swatch" data-color="34,197,94" style="background:#22c55e" title="Green"></div>
+        <div class="color-swatch" data-color="255,107,0" style="background:#ff6b00" title="Orange"></div>
+        <div class="color-swatch" data-color="244,63,94" style="background:#f43f5e" title="Pink"></div>
+        <div class="color-swatch" data-color="251,191,36" style="background:#fbbf24" title="Gold"></div>
+      </div>
+    </div>
+
+    <div class="settings-group">
+      <label>Temperature Unit</label>
+      <div class="toggle-row">
+        <div class="toggle-option active" data-key="tempUnit" data-val="C">°C</div>
+        <div class="toggle-option" data-key="tempUnit" data-val="F">°F</div>
+      </div>
+    </div>
+
+    <div class="settings-group">
+      <label>Speed Unit</label>
+      <div class="toggle-row">
+        <div class="toggle-option active" data-key="speedUnit" data-val="kmh">km/h</div>
+        <div class="toggle-option" data-key="speedUnit" data-val="mph">mph</div>
+      </div>
+    </div>
+
+    <div class="settings-group">
+      <label>Clock Format</label>
+      <div class="toggle-row">
+        <div class="toggle-option active" data-key="clockFormat" data-val="24">24-hour</div>
+        <div class="toggle-option" data-key="clockFormat" data-val="12">12-hour</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== JAVASCRIPT ===== -->
+<script>
+(function() {
+  'use strict';
+
+  // ============================================================
+  // CONFIG & STATE
+  // ============================================================
+  const STORAGE_KEY = 'serena-gt-settings';
+  const WEATHER_CACHE_KEY = 'serena-gt-weather';
+  const WEATHER_INTERVAL = 15 * 60 * 1000; // 15 min
+
+  const defaults = {
+    vehicleName: 'Nissan Serena',
+    homeAddr: '',
+    workAddr: '',
+    accentColor: '0,240,255',
+    tempUnit: 'C',
+    speedUnit: 'kmh',
+    clockFormat: '24'
+  };
+
+  let settings = { ...defaults, ...loadSettings() };
+  let geoWatchId = null;
+  let currentSpeed = 0;
+  let musicPlaying = true;
+  let musicProgress = 45; // percentage (fake)
+  let lastWeatherFetch = 0;
+  let currentCoords = null;
+  let leafletMap = null;
+  let navMapObj = null;
+  let carMarkerHome = null;
+  let carMarkerNav = null;
+  let mapFollowGps = true;
+  let isDarkMode = true;
+
+  // ============================================================
+  // SETTINGS PERSISTENCE
+  // ============================================================
+  function loadSettings() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  }
+
+  function saveSettings() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  }
+
+  function applySettings() {
+    // Vehicle name
+    document.getElementById('vehicleName').textContent = settings.vehicleName;
+
+    // Theme color
+    document.documentElement.style.setProperty('--accent', settings.accentColor);
+    const [r, g, b] = settings.accentColor.split(',').map(Number);
+    const hex = '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+    document.documentElement.style.setProperty('--accent-hex', hex);
+
+    // Speed unit display
+    document.getElementById('speedUnit').textContent = settings.speedUnit === 'mph' ? 'mph' : 'km/h';
+
+    // Update settings form
+    document.getElementById('setVehicleName').value = settings.vehicleName;
+    document.getElementById('setHomeAddr').value = settings.homeAddr;
+    document.getElementById('setWorkAddr').value = settings.workAddr;
+
+    // Update color swatches
+    document.querySelectorAll('.color-swatch').forEach(s => {
+      s.classList.toggle('active', s.dataset.color === settings.accentColor);
+    });
+
+    // Update toggles
+    document.querySelectorAll('.toggle-option').forEach(t => {
+      const key = t.dataset.key;
+      const val = t.dataset.val;
+      t.classList.toggle('active', settings[key] === val);
+    });
+  }
+
+  // ============================================================
+  // STARFIELD GENERATION
+  // ============================================================
+  function generateStars() {
+    const container = document.getElementById('stars');
+    const count = 25;
+    for (let i = 0; i < count; i++) {
+      const star = document.createElement('div');
+      star.className = 'star';
+      star.style.top = (Math.random() * 100) + '%';
+      star.style.left = (Math.random() * 100) + '%';
+      star.style.animationDelay = (Math.random() * 3) + 's';
+      star.style.width = star.style.height = (Math.random() * 2 + 1) + 'px';
+      container.appendChild(star);
+    }
+  }
+
+  // ============================================================
+  // LIVE CLOCK
+  // ============================================================
+  function updateClock() {
+    const now = new Date();
+    let hours = now.getHours();
+    const mins = now.getMinutes().toString().padStart(2, '0');
+
+    if (settings.clockFormat === '12') {
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12 || 12;
+      document.getElementById('clockTime').textContent = `${hours}:${mins} ${ampm}`;
+    } else {
+      document.getElementById('clockTime').textContent = `${hours.toString().padStart(2, '0')}:${mins}`;
+    }
+
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    document.getElementById('clockDate').textContent =
+      `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}`;
+  }
+
+  // ============================================================
+  // GPS SPEED
+  // ============================================================
+  // ============================================================
+  // LEAFLET MAP (Real OpenStreetMap)
+  // ============================================================
+  const TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+  const DEFAULT_LAT = 35.6812;
+  const DEFAULT_LNG = 139.7671;
+
+  function createCarIcon() {
+    return L.divIcon({
+      html: '<div class="car-marker">🚗</div>',
+      className: '',
+      iconSize: [28, 28],
+      iconAnchor: [14, 14]
+    });
+  }
+
+  function initMaps() {
+    // Home map (in the navigation card)
+    leafletMap = L.map('leafletMap', {
+      center: [DEFAULT_LAT, DEFAULT_LNG],
+      zoom: 15,
+      zoomControl: false,
+      attributionControl: false,
+      dragging: true,
+      touchZoom: true,
+      pinchZoom: true,
+      scrollWheelZoom: true,
+      doubleClickZoom: true,
+      boxZoom: false
+    });
+
+    L.tileLayer(TILE_URL, { maxZoom: 19, className: 'dark-tiles' }).addTo(leafletMap);
+    carMarkerHome = L.marker([DEFAULT_LAT, DEFAULT_LNG], { icon: createCarIcon() }).addTo(leafletMap);
+
+    // Stop following GPS when user drags the map
+    leafletMap.on('dragstart', () => { mapFollowGps = false; });
+
+    setTimeout(() => leafletMap.invalidateSize(), 200);
+
+    // Nav screen map (initialized lazily when opened)
+  }
+
+  function initNavMap() {
+    if (navMapObj) return;
+    navMapObj = L.map('navMap', {
+      center: [currentCoords ? currentCoords.lat : DEFAULT_LAT, currentCoords ? currentCoords.lon : DEFAULT_LNG],
+      zoom: 16,
+      zoomControl: false,
+      attributionControl: false,
+      dragging: true,
+      touchZoom: true,
+      pinchZoom: true,
+      scrollWheelZoom: true,
+      doubleClickZoom: true
+    });
+
+    L.tileLayer(TILE_URL, { maxZoom: 19, className: 'dark-tiles' }).addTo(navMapObj);
+    carMarkerNav = L.marker(
+      [currentCoords ? currentCoords.lat : DEFAULT_LAT, currentCoords ? currentCoords.lon : DEFAULT_LNG],
+      { icon: createCarIcon() }
+    ).addTo(navMapObj);
+  }
+
+  function centerOnMe() {
+    mapFollowGps = true;
+    const lat = currentCoords ? currentCoords.lat : DEFAULT_LAT;
+    const lon = currentCoords ? currentCoords.lon : DEFAULT_LNG;
+    leafletMap.flyTo([lat, lon], 16, { duration: 0.8 });
+  }
+
+  function initGeolocation() {
+    if (!navigator.geolocation) {
+      setGpsStatus(false);
+      initMaps();
+      return;
+    }
+
+    initMaps();
+
+    geoWatchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        setGpsStatus(true);
+        currentCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+
+        // Update home map markers
+        const ll = [currentCoords.lat, currentCoords.lon];
+        carMarkerHome.setLatLng(ll);
+        if (mapFollowGps) {
+          leafletMap.setView(ll, leafletMap.getZoom(), { animate: true });
+        }
+
+        // Update nav map markers if open
+        if (carMarkerNav) {
+          carMarkerNav.setLatLng(ll);
+        }
+
+        // Speed
+        let speed = pos.coords.speed;
+        if (speed === null || speed < 0) speed = 0;
+
+        if (settings.speedUnit === 'mph') {
+          currentSpeed = Math.round(speed * 2.237);
+        } else {
+          currentSpeed = Math.round(speed * 3.6);
+        }
+
+        document.getElementById('speedVal').textContent = currentSpeed;
+        const circle = document.getElementById('speedCircle');
+        circle.classList.toggle('moving', currentSpeed > 0);
+
+        // GPS accuracy in badge
+        if (pos.coords.accuracy) {
+          document.getElementById('gpsLabel').textContent = 'GPS · ' + Math.round(pos.coords.accuracy) + 'm';
+        }
+
+        // Weather fetch
+        if (Date.now() - lastWeatherFetch > WEATHER_INTERVAL) {
+          fetchWeather(currentCoords.lat, currentCoords.lon);
+        }
+      },
+      (err) => {
+        setGpsStatus(false);
+        const cached = loadWeatherCache();
+        if (cached) displayWeather(cached);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 2000 }
+    );
+  }
+
+  // ============================================================
+  // NAVIGATION SCREEN
+  // ============================================================
+  function openNavScreen() {
+    const screen = document.getElementById('navScreen');
+    screen.classList.add('open');
+    initNavMap();
+    setTimeout(() => {
+      navMapObj.invalidateSize();
+      const lat = currentCoords ? currentCoords.lat : DEFAULT_LAT;
+      const lon = currentCoords ? currentCoords.lon : DEFAULT_LNG;
+      navMapObj.setView([lat, lon], 16);
+      document.getElementById('navInput').focus();
+    }, 400);
+  }
+
+  function closeNavScreen() {
+    document.getElementById('navScreen').classList.remove('open');
+    setTimeout(() => leafletMap.invalidateSize(), 400);
+  }
+
+  function searchInNavApp(app) {
+    const query = document.getElementById('navInput').value.trim();
+    if (!query) {
+      document.getElementById('navInput').focus();
+      return;
+    }
+    const enc = encodeURIComponent(query);
+
+    switch (app) {
+      case 'apple':
+        window.location.href = 'maps://maps.apple.com/?daddr=' + enc + '&dirflg=d';
+        break;
+      case 'google':
+        window.location.href = 'comgooglemaps://?daddr=' + enc + '&directionsmode=driving';
+        setTimeout(() => {
+          window.open('https://www.google.com/maps/dir/?api=1&destination=' + enc + '&travelmode=driving', '_blank');
+        }, 600);
+        break;
+      case 'yahoo':
+        window.location.href = 'yjcarnavi://navi/select?keyword=' + enc;
+        setTimeout(() => {
+          window.location.href = 'https://map.yahoo.co.jp/search?q=' + enc;
+        }, 600);
+        break;
+      case 'navitime':
+        window.location.href = 'navitime://route?destination=' + enc;
+        setTimeout(() => {
+          window.location.href = 'https://www.navitime.co.jp/maps/search?text=' + enc;
+        }, 600);
+        break;
+    }
+  }
+
+  function setGpsStatus(hasFix) {
+    const badge = document.getElementById('gpsBadge');
+    badge.classList.toggle('no-fix', !hasFix);
+    document.getElementById('gpsLabel').textContent = hasFix ? 'GPS Active' : 'No GPS';
+  }
+
+  // ============================================================
+  // WEATHER (Open-Meteo)
+  // ============================================================
+  function fetchWeather(lat, lon) {
+    lastWeatherFetch = Date.now();
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&timezone=auto`;
+
+    fetch(url)
+      .then(r => r.json())
+      .then(data => {
+        if (data.current) {
+          const weatherData = {
+            temp: data.current.temperature_2m,
+            code: data.current.weather_code,
+            time: Date.now()
+          };
+          localStorage.setItem(WEATHER_CACHE_KEY, JSON.stringify(weatherData));
+          displayWeather(weatherData);
+        }
+      })
+      .catch(() => {
+        const cached = loadWeatherCache();
+        if (cached) displayWeather(cached);
+      });
+  }
+
+  function loadWeatherCache() {
+    try {
+      const raw = localStorage.getItem(WEATHER_CACHE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  }
+
+  function displayWeather(data) {
+    let temp = data.temp;
+    let unit = '°C';
+    if (settings.tempUnit === 'F') {
+      temp = Math.round(temp * 9 / 5 + 32);
+      unit = '°F';
+    } else {
+      temp = Math.round(temp);
+    }
+    document.getElementById('weatherTemp').textContent = `${temp}${unit}`;
+    document.getElementById('weatherIcon').textContent = wmoToEmoji(data.code);
+  }
+
+  function wmoToEmoji(code) {
+    if (code === 0) return '☀️';
+    if (code <= 3) return '⛅';
+    if (code <= 48) return '🌫️';
+    if (code <= 57) return '🌦️';
+    if (code <= 67) return '🌧️';
+    if (code <= 77) return '❄️';
+    if (code <= 82) return '🌧️';
+    if (code <= 86) return '🌨️';
+    if (code <= 99) return '⛈️';
+    return '☀️';
+  }
+
+  // ============================================================
+  // NETWORK STATUS (Signal Bars)
+  // ============================================================
+  function updateOnlineStatus() {
+    const bars = document.getElementById('signalBars');
+    bars.classList.toggle('offline', !navigator.onLine);
+  }
+
+  // ============================================================
+  // COMPASS (DeviceOrientation)
+  // ============================================================
+  function initCompass() {
+    if (typeof DeviceOrientationEvent !== 'undefined' &&
+        typeof DeviceOrientationEvent.requestPermission === 'function') {
+      // iOS 13+ requires permission
+      document.getElementById('compass').addEventListener('click', () => {
+        DeviceOrientationEvent.requestPermission().then(state => {
+          if (state === 'granted') listenCompass();
+        });
+      });
+    } else if ('DeviceOrientationEvent' in window) {
+      listenCompass();
+    }
+  }
+
+  function listenCompass() {
+    window.addEventListener('deviceorientation', (e) => {
+      if (e.webkitCompassHeading !== undefined) {
+        const heading = e.webkitCompassHeading;
+        document.getElementById('compass').style.transform = `rotate(${-heading}deg)`;
+      } else if (e.alpha !== null) {
+        document.getElementById('compass').style.transform = `rotate(${-e.alpha}deg)`;
+      }
+    });
+  }
+
+  // ============================================================
+  // MUSIC WIDGET (Fake Progress)
+  // ============================================================
+  function updateMusicProgress() {
+    if (!musicPlaying) return;
+    musicProgress += 0.05; // ~3 min song in full
+    if (musicProgress >= 100) musicProgress = 0;
+    document.getElementById('mwProgress').style.width = musicProgress + '%';
+
+    // Update time display
+    const totalSec = 200; // 3:20
+    const currentSec = Math.floor(totalSec * musicProgress / 100);
+    document.getElementById('mwTimeNow').textContent = formatTime(currentSec);
+    document.getElementById('mwTimeTotal').textContent = formatTime(totalSec);
+  }
+
+  function formatTime(sec) {
+    const m = Math.floor(sec / 60);
+    const s = (sec % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  }
+
+  // ============================================================
+  // APP DEEP LINKS
+  // ============================================================
+  function openApp(scheme, fallback) {
+    // On iOS, try the native scheme first
+    const start = Date.now();
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = scheme;
+    document.body.appendChild(iframe);
+
+    setTimeout(() => {
+      document.body.removeChild(iframe);
+      // If we're still here after 1.5s, the app didn't open
+      if (Date.now() - start < 2000 && fallback) {
+        window.location.href = fallback;
+      }
+    }, 1500);
+  }
+
+  function navigateToAddress(address) {
+    if (!address) {
+      // Open Maps search
+      openApp('maps://?q=', 'https://maps.apple.com/?q=');
+      return;
+    }
+    const encoded = encodeURIComponent(address);
+    openApp(`maps://?daddr=${encoded}`, `https://maps.apple.com/?daddr=${encoded}`);
+  }
+
+  // ============================================================
+  // SETTINGS PANEL
+  // ============================================================
+  function openSettings() {
+    const overlay = document.getElementById('settingsOverlay');
+    overlay.classList.add('open');
+  }
+
+  function closeSettings() {
+    const overlay = document.getElementById('settingsOverlay');
+    overlay.classList.remove('open');
+
+    // Save from form
+    settings.vehicleName = document.getElementById('setVehicleName').value || defaults.vehicleName;
+    settings.homeAddr = document.getElementById('setHomeAddr').value;
+    settings.workAddr = document.getElementById('setWorkAddr').value;
+    saveSettings();
+    applySettings();
+  }
+
+  // ============================================================
+  // TAP RIPPLE
+  // ============================================================
+  function addRipple(e, el) {
+    const rect = el.getBoundingClientRect();
+    const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+    const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+    const ripple = document.createElement('span');
+    ripple.className = 'ripple';
+    ripple.style.left = x + 'px';
+    ripple.style.top = y + 'px';
+    ripple.style.width = ripple.style.height = Math.max(rect.width, rect.height) + 'px';
+    el.style.position = el.style.position || 'relative';
+    el.style.overflow = 'hidden';
+    el.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 600);
+  }
+
+  // ============================================================
+  // EVENT LISTENERS
+  // ============================================================
+  function initEvents() {
+    // Nav tiles
+    document.getElementById('tileYahoo').addEventListener('click', (e) => {
+      addRipple(e, e.currentTarget);
+      openApp('yjcarnavi://', 'https://map.yahoo.co.jp/');
+    });
+    document.getElementById('tileCocchi').addEventListener('click', (e) => {
+      addRipple(e, e.currentTarget);
+      window.location.href = 'https://www.and-and.jp/cocchi/';
+    });
+    document.getElementById('tileGoogle').addEventListener('click', (e) => {
+      addRipple(e, e.currentTarget);
+      openApp('comgooglemaps://', 'https://maps.google.com/');
+    });
+    document.getElementById('tileNavitime').addEventListener('click', (e) => {
+      addRipple(e, e.currentTarget);
+      openApp('navitime://', 'https://www.navitime.co.jp/');
+    });
+
+    // Spotify
+    document.getElementById('btnSpotify').addEventListener('click', () => {
+      openApp('spotify://', 'https://open.spotify.com/');
+    });
+
+    // Music controls — all open Spotify
+    document.getElementById('btnPlayPause').addEventListener('click', (e) => {
+      addRipple(e, e.currentTarget);
+      musicPlaying = !musicPlaying;
+      document.getElementById('mwAlbum').classList.toggle('paused', !musicPlaying);
+      const svg = e.currentTarget.querySelector('svg');
+      if (musicPlaying) {
+        svg.innerHTML = '<polygon points="5,3 19,12 5,21"/>';
+      } else {
+        svg.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
+      }
+    });
+    document.getElementById('btnPrev').addEventListener('click', (e) => {
+      addRipple(e, e.currentTarget);
+      openApp('spotify://', 'https://open.spotify.com/');
+    });
+    document.getElementById('btnNext').addEventListener('click', (e) => {
+      addRipple(e, e.currentTarget);
+      openApp('spotify://', 'https://open.spotify.com/');
+    });
+
+    // Map overlay buttons
+    document.getElementById('mapSearchBtn').addEventListener('click', () => {
+      openNavScreen();
+    });
+    document.getElementById('mapLocateBtn').addEventListener('click', () => {
+      centerOnMe();
+    });
+
+    // Nav screen
+    document.getElementById('navBack').addEventListener('click', closeNavScreen);
+    document.getElementById('navCloseBtn').addEventListener('click', closeNavScreen);
+    document.querySelectorAll('.nav-app-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        searchInNavApp(btn.dataset.app);
+      });
+    });
+    // Enter key in nav search
+    document.getElementById('navInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        // Default to Google Maps on Enter
+        searchInNavApp('google');
+      }
+    });
+
+    // Quick buttons
+    document.getElementById('btnHome').addEventListener('click', (e) => {
+      addRipple(e, e.currentTarget);
+      if (settings.homeAddr) {
+        navigateToAddress(settings.homeAddr);
+      } else {
+        openNavScreen();
+      }
+    });
+    document.getElementById('btnWork').addEventListener('click', (e) => {
+      addRipple(e, e.currentTarget);
+      if (settings.workAddr) {
+        navigateToAddress(settings.workAddr);
+      } else {
+        openNavScreen();
+      }
+    });
+    document.getElementById('btnSearch').addEventListener('click', (e) => {
+      addRipple(e, e.currentTarget);
+      openNavScreen();
+    });
+
+    // Dock buttons
+    document.getElementById('dockHome').addEventListener('click', (e) => {
+      addRipple(e, e.currentTarget);
+      setActiveDock(e.currentTarget);
+    });
+    document.getElementById('dockNavigate').addEventListener('click', (e) => {
+      addRipple(e, e.currentTarget);
+      setActiveDock(e.currentTarget);
+      openNavScreen();
+    });
+    document.getElementById('dockMedia').addEventListener('click', (e) => {
+      addRipple(e, e.currentTarget);
+      setActiveDock(e.currentTarget);
+      openApp('spotify://', 'https://open.spotify.com/');
+    });
+    document.getElementById('dockPhone').addEventListener('click', (e) => {
+      addRipple(e, e.currentTarget);
+      setActiveDock(e.currentTarget);
+      window.location.href = 'tel:';
+    });
+    document.getElementById('dockMode').addEventListener('click', (e) => {
+      addRipple(e, e.currentTarget);
+      openSettings();
+    });
+
+    // Settings
+    document.getElementById('settingsClose').addEventListener('click', closeSettings);
+    document.getElementById('settingsOverlay').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeSettings();
+    });
+
+    // Color swatches
+    document.querySelectorAll('.color-swatch').forEach(swatch => {
+      swatch.addEventListener('click', () => {
+        settings.accentColor = swatch.dataset.color;
+        saveSettings();
+        applySettings();
+      });
+    });
+
+    // Toggle options
+    document.querySelectorAll('.toggle-option').forEach(opt => {
+      opt.addEventListener('click', () => {
+        const key = opt.dataset.key;
+        const val = opt.dataset.val;
+        settings[key] = val;
+        saveSettings();
+        applySettings();
+        updateClock();
+        // Re-display weather with new unit
+        const cached = loadWeatherCache();
+        if (cached) displayWeather(cached);
+        // Update speed display
+        document.getElementById('speedUnit').textContent = settings.speedUnit === 'mph' ? 'mph' : 'km/h';
+      });
+    });
+
+    // Input fields — save on blur
+    document.getElementById('setVehicleName').addEventListener('blur', () => {
+      settings.vehicleName = document.getElementById('setVehicleName').value || defaults.vehicleName;
+      saveSettings();
+      applySettings();
+    });
+    document.getElementById('setHomeAddr').addEventListener('blur', () => {
+      settings.homeAddr = document.getElementById('setHomeAddr').value;
+      saveSettings();
+    });
+    document.getElementById('setWorkAddr').addEventListener('blur', () => {
+      settings.workAddr = document.getElementById('setWorkAddr').value;
+      saveSettings();
+    });
+
+    // Mode toggle (dark/light) — in dock
+    document.getElementById('dockModeToggle').addEventListener('click', () => {
+      isDarkMode = !isDarkMode;
+      document.body.classList.toggle('light-mode', !isDarkMode);
+      document.getElementById('modeToggle').textContent = isDarkMode ? '🌙' : '☀️';
+      localStorage.setItem('serena-gt-mode', isDarkMode ? 'dark' : 'light');
+    });
+
+    // Network status
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+
+    // Visibility change — refresh weather
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && currentCoords) {
+        if (Date.now() - lastWeatherFetch > WEATHER_INTERVAL) {
+          fetchWeather(currentCoords.lat, currentCoords.lon);
+        }
+      }
+    });
+  }
+
+  function setActiveDock(el) {
+    document.querySelectorAll('.dock-btn').forEach(b => b.classList.remove('active-dock'));
+    el.classList.add('active-dock');
+  }
+
+  // ============================================================
+  // SERVICE WORKER REGISTRATION
+  // ============================================================
+  function registerSW() {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    }
+  }
+
+  // ============================================================
+  // INIT
+  // ============================================================
+  function init() {
+    generateStars();
+    applySettings();
+    updateClock();
+    updateOnlineStatus();
+    initGeolocation();
+    initCompass();
+    initEvents();
+    registerSW();
+
+    // Restore dark/light mode
+    const savedMode = localStorage.getItem('serena-gt-mode');
+    if (savedMode === 'light') {
+      isDarkMode = false;
+      document.body.classList.add('light-mode');
+      document.getElementById('modeToggle').textContent = '☀️';
+    }
+
+    // Intervals
+    setInterval(updateClock, 1000);
+    setInterval(updateMusicProgress, 1000);
+
+    // Load cached weather immediately
+    const cached = loadWeatherCache();
+    if (cached) displayWeather(cached);
+
+    // Initial weather fetch if we get coords quickly
+    if (currentCoords) {
+      fetchWeather(currentCoords.lat, currentCoords.lon);
+    }
+  }
+
+  // Start when DOM ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
+</body>
+</html>
