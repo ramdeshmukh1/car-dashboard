@@ -1835,19 +1835,19 @@ body.light-mode .nav-info-text {
     // Nav tiles
     document.getElementById('tileYahoo').addEventListener('click', (e) => {
       addRipple(e, e.currentTarget);
-      window.location.href = 'shortcuts://run-shortcut?name=Yahoo';
+      window.location.href = 'shortcuts://run-shortcut?name=YahooMap';
     });
     document.getElementById('tileCocchi').addEventListener('click', (e) => {
       addRipple(e, e.currentTarget);
-      window.location.href = 'https://www.and-and.jp/cocchi/';
+      window.location.href = 'shortcuts://run-shortcut?name=CocchiMap';
     });
     document.getElementById('tileGoogle').addEventListener('click', (e) => {
       addRipple(e, e.currentTarget);
-      openApp('comgooglemaps://', 'https://maps.google.com/');
+      window.location.href = 'shortcuts://run-shortcut?name=GoogleMap';
     });
     document.getElementById('tileNavitime').addEventListener('click', (e) => {
       addRipple(e, e.currentTarget);
-      openApp('navitime://', 'https://www.navitime.co.jp/');
+      window.location.href = 'shortcuts://run-shortcut?name=NavitimeMap';
     });
 
     // Spotify
